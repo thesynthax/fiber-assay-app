@@ -14,28 +14,28 @@ const ImagePreview = ({
   useEffect(() => {
     if (!file) return
     const timeout = setTimeout(async () => {
-      const form = new FormData()
-      form.append('file', file)
-      form.append('brightness', brightness)
-      form.append('contrast', contrast)
-      form.append('gamma', gamma)
-      form.append('noise_reduction', noiseReduction)
-      form.append('artifact_size', artifactSize)
-      form.append('red_factor', redBoost)
-      form.append('green_suppression', greenSuppress)
-      form.append('advanced', advanced)
-      form.append('morph_kernel', morphKernel)
+      const form = new FormData();
+      form.append('file', file);
+      form.append('brightness', brightness);
+      form.append('contrast', contrast);
+      form.append('gamma', gamma);
+      form.append('noise_reduction', noiseReduction);
+      form.append('artifact_size', artifactSize);
+      form.append('red_factor', redBoost);
+      form.append('green_suppression', greenSuppress);
+      form.append('advanced', advanced);
+      form.append('morph_kernel', morphKernel);
 
       try {
-        const resp = await fetch('/preview', { method: 'POST', body: form })
-        const blob = await resp.blob()
-        setPreviewUrl(URL.createObjectURL(blob))
+        const resp = await fetch('/preview', { method: 'POST', body: form });
+        const blob = await resp.blob();
+        setPreviewUrl(URL.createObjectURL(blob));
       } catch (err) {
-        console.error('Preview error:', err)
+        console.error('Preview error:', err);
       }
-    }, 300)
-    return () => clearTimeout(timeout)
-  }, [file, brightness, contrast, gamma, noiseReduction, artifactSize, redBoost, greenSuppress, advanced, morphKernel])
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [file, brightness, contrast, gamma, noiseReduction, artifactSize, redBoost, greenSuppress, advanced, morphKernel]);
 
   return (
     <div className="preview">
@@ -51,7 +51,7 @@ const ImagePreview = ({
       </div>
       <div className="controls">
         <label>
-          Brightness Cutoff: {brightness}
+          Brightness: {brightness}
           <input type="range" min="0" max="100" step="1" value={brightness} onChange={e => setParams(p => ({ ...p, brightness: Number(e.target.value) }))} />
         </label>
         
@@ -92,7 +92,7 @@ const ImagePreview = ({
         )}
       </div>
     </div>
-  )
+  );
 }
 
 export default ImagePreview;
