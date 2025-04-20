@@ -52,11 +52,31 @@ def preprocess_color(
     # 1) brightness/contrast/gamma
     img = adjust_brightness_contrast_gamma(img, brightness, contrast, gamma)
 
-    # 2) color channel scaling
+    ''' # 2) color channel scaling
     b, g, r = cv2.split(img)
-    r = np.clip(r.astype(np.float32) * red_boost,      0, 255).astype(np.uint8)
+    r = np.clip(r.astype(np.float32) * red_boost, 0, 255).astype(np.uint8)
     g = np.clip(g.astype(np.float32) * green_suppress, 0, 255).astype(np.uint8)
-    img = cv2.merge([b, g, r])
+    img = cv2.merge([b, g, r])'''
+
+    # b, g, r = cv2.split(img)
+    b, g, r = cv2.split(img)
+
+# 1) Identify red‑dominant pixels (simple threshold: red > green)
+    red_dom = r > g
+
+# 2) Make float copy, boost red only where red_dom is True
+    r_boost = r.astype(np.float32)
+    r_boost[red_dom] *= red_boost  # your slider value
+    r_boost = np.clip(r_boost, 0, 255).astype(np.uint8)
+
+# 3) (Optional) Suppress green only where green dominates
+    green_dom = g > r
+    g_supp = g.astype(np.float32)
+    g_supp[green_dom] *= green_suppress
+    g_supp = np.clip(g_supp, 0, 255).astype(np.uint8)
+
+# 4) Merge back
+    img = cv2.merge([b, g_supp, r_boost])
 
     # 3) noise reduction (bilateral filter)
     filtered = cv2.bilateralFilter(img, noise_reduction, noise_reduction*10, noise_reduction*10)
@@ -82,32 +102,57 @@ def preprocess_color(
     return cleaned
 
 def analyze_pipeline_color(img: np.ndarray):
-    # edge & line detection
-    gray  = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 50, 150)
-    raw   = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=20, minLineLength=30, maxLineGap=10)
+    """
+    Detect lines on a color image, compute ratios per‑line using an ROI around each
+    segment, and overlay red/green pieces back onto the full image.
+    """
+    # 1) Edge & line detection on full image
+    gray_full = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray_full, 50, 150)
+    raw = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=20, minLineLength=30, maxLineGap=10)
     lines = raw if raw is not None else []
 
-    # prepare masks for ratio
-    red_mask   = cv2.inRange(img, (0,0,100), (80,80,255))
-    green_mask = cv2.inRange(img, (0,100,0), (80,255,80))
-
     overlay = img.copy()
-    ratios  = []
+    ratios = []
+
     for l in lines:
-        x1,y1,x2,y2 = l[0]
-        lm = np.zeros_like(gray)
-        cv2.line(lm, (x1,y1),(x2,y2), 255, 1)
-        rl = cv2.countNonZero(cv2.bitwise_and(red_mask, red_mask, mask=lm))
-        gl = cv2.countNonZero(cv2.bitwise_and(green_mask, green_mask, mask=lm))
-        tot = rl + gl
-        ratio = rl/tot if tot>0 else 0
+        x1, y1, x2, y2 = l[0]
+
+        # 2) Compute bounding box + pad by 1px
+        pad = 1
+        x_min = max(min(x1, x2) - pad, 0)
+        x_max = min(max(x1, x2) + pad, img.shape[1] - 1)
+        y_min = max(min(y1, y2) - pad, 0)
+        y_max = min(max(y1, y2) + pad, img.shape[0] - 1)
+
+        # 3) Extract ROI from color & gray
+        roi_color = img[y_min:y_max+1, x_min:x_max+1]
+        roi_gray = gray_full[y_min:y_max+1, x_min:x_max+1]
+
+        # 4) Create a mask of the line in ROI‑coords
+        line_mask = np.zeros_like(roi_gray)
+        pt1 = (x1 - x_min, y1 - y_min)
+        pt2 = (x2 - x_min, y2 - y_min)
+        cv2.line(line_mask, pt1, pt2, 255, 1)
+
+        # 5) Threshold ROI for red and green
+        red_mask_roi = cv2.inRange(roi_color, (0,0,100),    (80,80,255))
+        green_mask_roi = cv2.inRange(roi_color, (0,100,0),    (80,255,80))
+
+        # 6) Count pixels of each color only where line_mask==255
+        red_len = cv2.countNonZero(cv2.bitwise_and(red_mask_roi,   red_mask_roi,   mask=line_mask))
+        green_len = cv2.countNonZero(cv2.bitwise_and(green_mask_roi, green_mask_roi, mask=line_mask))
+        total = red_len + green_len
+        ratio = red_len / total if total > 0 else 0
         ratios.append(ratio)
-        # draw red/green segments
-        mx = int(x1 + (x2-x1)*(rl/tot)) if tot>0 else x1
-        my = int(y1 + (y2-y1)*(rl/tot)) if tot>0 else y1
-        cv2.line(overlay, (x1,y1),(mx, my), (0,0,255), 2)
-        cv2.line(overlay, (mx, my),(x2,y2), (0,255,0), 2)
+
+        # 7) Draw red/green segments on the overlay (full‑image coords)
+        #    find the midpoint in image space
+        frac = red_len / total if total>0 else 0
+        mx = int(x1 + (x2 - x1) * frac)
+        my = int(y1 + (y2 - y1) * frac)
+        cv2.line(overlay, (x1, y1), (mx, my), (0,0,255), 2)
+        cv2.line(overlay, (mx, my), (x2, y2), (0,255,0), 2)
 
     return overlay, ratios
 
