@@ -1,0 +1,59 @@
+from fastapi import FastAPI, File, UploadFile, Form
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse, JSONResponse
+import cv2
+import numpy as np
+from io import BytesIO
+
+app = FastAPI()
+
+# Allow CORS for localhost frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # adjust in production
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/")
+async def test():
+    return JSONResponse(content={"status": "success"})
+
+@app.post("/upload")
+async def upload_image(file: UploadFile = File(...)):
+    # Read image
+    data = await file.read()
+    np_img = np.frombuffer(data, np.uint8)
+    img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
+
+    # Preprocessing placeholder (e.g., noise removal)
+    preproc = cv2.GaussianBlur(img, (5, 5), 0)
+
+    # TODO: call core engine here
+    # For now, returning dummy stats
+    stats = {
+        "lines_detected": 123,
+        "average_ratio": 0.45,
+        "ratios": [0.4, 0.5, 0.47]
+    }
+
+    return JSONResponse(content={"status": "success", "data": stats})
+
+@app.post("/preview")
+async def realtime_preview(
+    file: UploadFile = File(...),
+    blur_strength: int = Form(5)
+):
+    # Read image
+    data = await file.read()
+    np_img = np.frombuffer(data, np.uint8)
+    img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
+
+    # Real-time preprocessing with blur_strength
+    k = blur_strength if blur_strength % 2 == 1 else blur_strength + 1
+    processed = cv2.GaussianBlur(img, (k, k), 0)
+
+    # Encode to JPEG
+    _, buf = cv2.imencode('.jpg', processed)
+    return StreamingResponse(BytesIO(buf.tobytes()), media_type='image/jpeg')
+
