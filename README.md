@@ -11,3 +11,12 @@ The statistical output of the ratios of the DNA track lengths is returned. This 
 - FastAPI
 - React/Vite
 - JavaScript
+
+#### How to use it:
+Start server:
+- `cd server` and `pip install -r requirements.txt`
+- `uvicorn main:app --reload --port 8000`
+
+Start front-end:
+- `cd client` and `npm i`
+- `npm run dev`
