@@ -135,7 +135,7 @@ def analyze_pipeline_color(img: np.ndarray):
         pt2 = (x2 - x_min, y2 - y_min)
         cv2.line(line_mask, pt1, pt2, 255, 1)
 
-        # 5) Threshold ROI for red and green
+        ''' # 5) Threshold ROI for red and green
         red_mask_roi = cv2.inRange(roi_color, (0,0,100),    (80,80,255))
         green_mask_roi = cv2.inRange(roi_color, (0,100,0),    (80,255,80))
 
@@ -144,11 +144,28 @@ def analyze_pipeline_color(img: np.ndarray):
         green_len = cv2.countNonZero(cv2.bitwise_and(green_mask_roi, green_mask_roi, mask=line_mask))
         total = red_len + green_len
         ratio = red_len / total if total > 0 else 0
+        ratios.append(ratio)'''
+
+        # 5) Intensity‐weighted red/green sum along the 1-pixel line mask
+        #   split ROI into float channels
+        b_roi, g_roi, r_roi = cv2.split(roi_color.astype(np.float32))
+        #   extract only the mask pixels
+        mask_pixels = line_mask > 0
+        sum_r = float(r_roi[mask_pixels].sum())
+        sum_g = float(g_roi[mask_pixels].sum())
+        total  = sum_r + sum_g
+        ratio = sum_r / total if total > 0 else 0.0
         ratios.append(ratio)
 
-        # 7) Draw red/green segments on the overlay (full‑image coords)
+        '''# 7) Draw red/green segments on the overlay (full‑image coords)
         #    find the midpoint in image space
-        frac = red_len / total if total>0 else 0
+        frac = red_len / total if total>0 else 0'''
+
+        # 7) Draw red/green segments on the overlay (full-image coords)
+        #    find the split point by the same ratio
+        frac = ratio
+
+
         mx = int(x1 + (x2 - x1) * frac)
         my = int(y1 + (y2 - y1) * frac)
         cv2.line(overlay, (x1, y1), (mx, my), (0,0,255), 2)

@@ -1,24 +1,48 @@
 import React from 'react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip
+} from 'recharts';
 
 const StatsDisplay = ({ stats }) => {
-  const data = stats.ratios.map((r, i) => ({ index: i + 1, ratio: Number(r.toFixed(2)) }));
+  // Convert ratios into histogram bins
+  const binSize = 0.1;
+  const binCount = Math.ceil(1 / binSize);
+  const bins = Array.from({ length: binCount }, (_, i) => ({
+    bin: `${(i * binSize).toFixed(1)}–${((i + 1) * binSize).toFixed(1)}`,
+    count: 0
+  }));
+
+  stats.ratios.forEach((r) => {
+    const idx = Math.min(Math.floor(r / binSize), binCount - 1);
+    bins[idx].count++;
+  });
 
   return (
     <div className="stats">
       <h3>Analysis Results</h3>
       <p>Lines Detected: {stats.lines_detected}</p>
+
       <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+        <BarChart data={bins} margin={{ top: 5, right: 20, bottom: 25, left: 0 }}>
           <CartesianGrid stroke="#ccc" />
-          <XAxis dataKey="index" label={{ value: 'Fiber #', position: 'insideBottomRight', offset: -5 }} />
-          <YAxis label={{ value: 'Red/(Red+Green)', angle: -90, position: 'insideLeft' }} />
+          <XAxis
+            dataKey="bin"
+            label={{ value: 'Red / (Red + Green)', position: 'insideBottom', offset: -10 }}
+          />
+          <YAxis label={{ value: 'Fiber Count', angle: -90, position: 'insideLeft' }} />
           <Tooltip />
-          <Line type="monotone" dataKey="ratio" stroke="#8884d8" dot={false} />
-        </LineChart>
+          <Bar dataKey="count" fill="#82ca9d" />
+        </BarChart>
       </ResponsiveContainer>
+
       <details>
-        <summary>Ratios</summary>
+        <summary>Individual Ratios</summary>
         <ul>
           {stats.ratios.map((r, i) => (
             <li key={i}>{r.toFixed(2)}</li>
@@ -26,7 +50,7 @@ const StatsDisplay = ({ stats }) => {
         </ul>
       </details>
     </div>
-  )
-}
+  );
+};
 
 export default StatsDisplay;
